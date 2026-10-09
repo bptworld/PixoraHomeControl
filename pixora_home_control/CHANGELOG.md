@@ -1,3 +1,7 @@
+# 1.0.2
+
+- Report specific local request failures, HTTP status, and request path in logs without exposing credentials or response bodies.
+
 # 1.0.1
 
 - Publish the app in its own public installation repository.

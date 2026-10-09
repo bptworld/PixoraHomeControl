@@ -30,7 +30,7 @@ class LocalAPI:
     async def request(self, path, method='GET', payload=None):
         async with self.session.request(method, API + path.removeprefix('/api'), json=payload if method == 'POST' else None, headers={'Authorization': 'Bearer ' + self.token}, timeout=aiohttp.ClientTimeout(total=8), allow_redirects=False) as response:
             if response.status >= 300:
-                raise ValueError('Home Assistant rejected the local request.')
+                raise ValueError(f'Home Assistant local request failed (HTTP {response.status}).')
             raw = await response.content.read(5_000_001)
             if len(raw) > 5_000_000:
                 raise ValueError('Home Assistant response is too large.')
@@ -123,8 +123,20 @@ class Connector:
             result = await local.registry() if path == '/pixora/registry' else await local.request(path, method, message.get('payload'))
             response['data'] = None if method == 'POST' else result
             response['ok'] = True
-        except (ValueError, aiohttp.ClientError, asyncio.TimeoutError):
-            LOG.warning('A local Home Assistant request failed; it will not be retried automatically.')
+        except (ValueError, aiohttp.ClientError, asyncio.TimeoutError) as error:
+            # Report fixed categories only; never relay response bodies or credentials.
+            if isinstance(error, asyncio.TimeoutError):
+                detail = 'Local Home Assistant request timed out.'
+            elif isinstance(error, aiohttp.ClientError):
+                detail = 'Local Home Assistant connection failed.'
+            elif str(error).startswith('Home Assistant local request failed (HTTP '):
+                detail = str(error)
+            elif str(error) in {'Expired or unsupported request.', 'Local registry request failed.', 'Home Assistant response is too large.'}:
+                detail = str(error)
+            else:
+                detail = 'Local Home Assistant returned an invalid response.'
+            response['error'] = detail
+            LOG.warning('%s %s: %s No automatic retry.', method, path, detail)
         await cloud.send_json(response)
 
     async def run_connection(self, session, local, credential):

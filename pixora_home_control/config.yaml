@@ -1,5 +1,5 @@
 name: Pixora Home Control
-version: "1.0.1"
+version: "1.0.2"
 slug: pixora_home_control
 description: Connect Home Assistant locally to Pixora Home Control, Planner, and Flows.
 url: https://github.com/bptworld/PixoraHomeControl/tree/main/pixora_home_control
