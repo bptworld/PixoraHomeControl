@@ -1,3 +1,8 @@
+# 1.0.4
+
+- Reset reconnect backoff after sessions lasting at least 60 seconds.
+- Log which connection closed, its close code, and the reconnect delay without exposing credentials.
+
 # 1.0.3
 
 - Read complete local HTTP responses before decoding JSON, preserving the response size limit. Fixes fragmented device-state and service catalog reads.

@@ -81,7 +81,7 @@ class LocalAPI:
                     event = message.get('event', {})
                     if event.get('event_type') == 'state_changed':
                         events.put_nowait(event['data'])
-            raise ConnectionError('Home Assistant event connection closed.')
+            raise ConnectionError(f'Home Assistant event connection closed (code {ws.close_code}).')
 
 
 class Connector:
@@ -172,7 +172,7 @@ class Connector:
                         requests.put_nowait(message)
                     elif message.get('type') != 'pong':
                         raise ValueError('Invalid cloud message.')
-                raise ConnectionError('Pixora connection closed.')
+                raise ConnectionError(f'Pixora connection closed (code {cloud.close_code}).')
 
             tasks = [asyncio.create_task(coro) for coro in [local.listen(cloud, events), send_events(), commands(), heartbeat(), receive()]]
             LOG.info('Paired connector connected to Pixora.')
@@ -200,12 +200,19 @@ class Connector:
         async with aiohttp.ClientSession() as session:
             local = LocalAPI(session, os.environ['SUPERVISOR_TOKEN'])
             while True:
+                started = time.monotonic()
                 try:
                     if state.get('codeHash') != hashlib.sha256(code.encode()).hexdigest():
                         state = await self.pair(session, local, code)
                     await self.run_connection(session, local, state['credential'])
-                except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionError, ValueError, asyncio.QueueFull, KeyError):
-                    LOG.warning('Connector offline. Reconnecting; if this continues, generate a new pairing code in Planner.')
+                except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionError, ValueError, asyncio.QueueFull, KeyError) as error:
+                    # Healthy sessions must not inherit earlier outage backoff.
+                    if time.monotonic() - started >= 60:
+                        delay = 1
+                    reason = type(error).__name__
+                    if isinstance(error, ConnectionError) or str(error) in {'Invalid local greeting.', 'Local authentication failed.', 'Local event subscription failed.', 'Invalid cloud message.', 'Connector authorization failed. Pair again in Planner.'}:
+                        reason = str(error)
+                    LOG.warning('Connector offline: %s Reconnecting in %ss.', reason, delay)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 30)
 
