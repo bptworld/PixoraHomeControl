@@ -25,7 +25,9 @@ class LocalAPI:
         self.session, self.token = session, token
         self.socket = None
         self.pending = {}
-        self.counter = 1
+        self.counter = 2
+        self.registry_cache = None
+        self.registry_at = 0
 
     async def request(self, path, method='GET', payload=None):
         async with self.session.request(method, API + path.removeprefix('/api'), json=payload if method == 'POST' else None, headers={'Authorization': 'Bearer ' + self.token}, timeout=aiohttp.ClientTimeout(total=8), allow_redirects=False) as response:
@@ -38,24 +40,38 @@ class LocalAPI:
                     raise ValueError('Home Assistant response is too large.')
             return json.loads(raw)
 
-    async def query(self, kind):
+    async def query(self, kind, **fields):
         self.counter += 1
         ident = self.counter
         future = asyncio.get_running_loop().create_future()
         self.pending[ident] = future
         try:
-            await self.socket.send_json({'id': ident, 'type': kind})
+            await self.socket.send_json({'id': ident, 'type': kind, **fields})
             return await asyncio.wait_for(future, 8)
         finally:
             self.pending.pop(ident, None)
 
     async def registry(self):
+        if self.registry_cache is not None and time.monotonic()-self.registry_at<60:
+            return self.registry_cache
         values = await asyncio.gather(*(self.query(kind) for kind in ['config/area_registry/list', 'config/device_registry/list', 'config/entity_registry/list']))
-        return dict(zip(['areas', 'devices', 'entities'], values))
+        registry = dict(zip(['areas', 'devices', 'entities'], values))
+        controllers = []
+        for device in registry['devices']:
+            if not any(isinstance(pair,list) and pair and pair[0]=='lutron_caseta' for pair in device.get('identifiers',[])):
+                continue
+            triggers = await self.query('device_automation/trigger/list', device_id=device['id'])
+            options = sorted({item['subtype']+':'+item['type'] for item in triggers if item.get('domain')=='lutron_caseta' and isinstance(item.get('subtype'),str) and isinstance(item.get('type'),str)})
+            if options:
+                controllers.append({'deviceId':device['id'], 'name':device.get('name_by_user') or device.get('name') or 'Lutron controller', 'events':options})
+        registry['buttonControllers'] = controllers
+        self.registry_cache=registry;self.registry_at=time.monotonic()
+        return registry
 
     async def listen(self, cloud, events):
         async with self.session.ws_connect(HA_SOCKET, heartbeat=20, max_msg_size=5_000_000) as ws:
             self.socket = ws
+            self.registry_cache = None
             if (await ws.receive_json()).get('type') != 'auth_required':
                 raise ValueError('Invalid local greeting.')
             await ws.send_json({'type': 'auth', 'access_token': self.token})
@@ -65,7 +81,17 @@ class LocalAPI:
             result = await ws.receive_json()
             if result.get('type') != 'result' or not result.get('success'):
                 raise ValueError('Local event subscription failed.')
+            await ws.send_json({'id': 2, 'type': 'subscribe_events', 'event_type': 'lutron_caseta_button_event'})
+            result = await ws.receive_json()
+            initial_events=[]
+            while result.get('type')=='event' and result.get('id')==1:
+                initial_events.append(result['event']['data'])
+                result=await ws.receive_json()
+            if result.get('type')!='result' or not result.get('success'):
+                raise ValueError('Local Lutron event subscription failed.')
+            self.counter = max(self.counter, 2)
             await cloud.send_json({'type': 'ready'})
+            for event in initial_events:events.put_nowait(event)
             async for frame in ws:
                 if frame.type != aiohttp.WSMsgType.TEXT:
                     break
@@ -77,10 +103,16 @@ class LocalAPI:
                             future.set_result(message.get('result'))
                         else:
                             future.set_exception(ValueError('Local registry request failed.'))
-                elif message.get('type') == 'event' and message.get('id') == 1:
+                elif message.get('type') == 'event' and message.get('id') in (1,2):
                     event = message.get('event', {})
                     if event.get('event_type') == 'state_changed':
                         events.put_nowait(event['data'])
+                    elif event.get('event_type')=='lutron_caseta_button_event':
+                        data = event.get('data',{})
+                        ident = data.get('device_id','')
+                        if re.fullmatch(r'[a-f0-9]{32}',ident) and isinstance(data.get('button_type'),str) and isinstance(data.get('action'),str):
+                            stamp = event.get('time_fired') or str(time.time_ns())
+                            events.put_nowait({'entity_id':'event.lutron_'+ident,'new_state':{'entity_id':'event.lutron_'+ident,'state':stamp,'last_updated':stamp,'attributes':{'event_type':data['button_type']+':'+data['action']}}})
             raise ConnectionError(f'Home Assistant event connection closed (code {ws.close_code}).')
 
 

@@ -1,3 +1,7 @@
+# 1.0.5
+
+- Discover Lutron button controllers and forward their live button events to Flows.
+
 # 1.0.4
 
 - Reset reconnect backoff after sessions lasting at least 60 seconds.
