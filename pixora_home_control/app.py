@@ -31,9 +31,11 @@ class LocalAPI:
         async with self.session.request(method, API + path.removeprefix('/api'), json=payload if method == 'POST' else None, headers={'Authorization': 'Bearer ' + self.token}, timeout=aiohttp.ClientTimeout(total=8), allow_redirects=False) as response:
             if response.status >= 300:
                 raise ValueError(f'Home Assistant local request failed (HTTP {response.status}).')
-            raw = await response.content.read(5_000_001)
-            if len(raw) > 5_000_000:
-                raise ValueError('Home Assistant response is too large.')
+            raw = bytearray()
+            async for chunk in response.content.iter_chunked(65536):
+                raw.extend(chunk)
+                if len(raw) > 5_000_000:
+                    raise ValueError('Home Assistant response is too large.')
             return json.loads(raw)
 
     async def query(self, kind):

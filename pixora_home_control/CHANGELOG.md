@@ -1,3 +1,7 @@
+# 1.0.3
+
+- Read complete local HTTP responses before decoding JSON, preserving the response size limit. Fixes fragmented device-state and service catalog reads.
+
 # 1.0.2
 
 - Report specific local request failures, HTTP status, and request path in logs without exposing credentials or response bodies.
