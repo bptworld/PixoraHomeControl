@@ -38,7 +38,7 @@ class LocalAPI:
         self.session, self.token = session, token
         self.socket = None
         self.pending = {}
-        self.counter = 2
+        self.counter = 3
         self.registry_cache = None
         self.registry_at = 0
 
@@ -82,50 +82,44 @@ class LocalAPI:
         return registry
 
     async def listen(self, cloud, events):
+        def converted(message):
+            event=message.get('event',{})
+            if message.get('id')==3:return {'_ha_event':event}
+            if event.get('event_type')=='state_changed':return event.get('data')
+            if event.get('event_type')=='lutron_caseta_button_event':
+                data=event.get('data',{});ident=data.get('device_id','')
+                if re.fullmatch(r'[a-f0-9]{32}',ident) and isinstance(data.get('button_type'),str) and isinstance(data.get('action'),str):
+                    stamp=event.get('time_fired') or str(time.time_ns())
+                    return {'entity_id':'event.lutron_'+ident,'new_state':{'entity_id':'event.lutron_'+ident,'state':stamp,'last_updated':stamp,'attributes':{'event_type':data['button_type']+':'+data['action']}}}
         async with self.session.ws_connect(HA_SOCKET, heartbeat=20, max_msg_size=5_000_000) as ws:
-            self.socket = ws
-            self.registry_cache = None
-            if (await socket_json(ws, 'Home Assistant')).get('type') != 'auth_required':
-                raise ValueError('Invalid local greeting.')
-            await ws.send_json({'type': 'auth', 'access_token': self.token})
-            if (await socket_json(ws, 'Home Assistant')).get('type') != 'auth_ok':
-                raise ValueError('Local authentication failed.')
-            await ws.send_json({'id': 1, 'type': 'subscribe_events', 'event_type': 'state_changed'})
-            result = await socket_json(ws, 'Home Assistant')
-            if result.get('type') != 'result' or not result.get('success'):
-                raise ValueError('Local event subscription failed.')
-            await ws.send_json({'id': 2, 'type': 'subscribe_events', 'event_type': 'lutron_caseta_button_event'})
-            result = await socket_json(ws, 'Home Assistant')
-            initial_events=[]
-            while result.get('type')=='event' and result.get('id')==1:
-                initial_events.append(result['event']['data'])
-                result=await socket_json(ws, 'Home Assistant')
-            if result.get('type')!='result' or not result.get('success'):
-                raise ValueError('Local Lutron event subscription failed.')
-            self.counter = max(self.counter, 2)
-            await cloud.send_json({'type': 'ready'})
-            for event in initial_events:events.put_nowait(event)
+            self.socket=ws;self.registry_cache=None
+            if (await socket_json(ws,'Home Assistant')).get('type')!='auth_required':raise ValueError('Invalid local greeting.')
+            await ws.send_json({'type':'auth','access_token':self.token})
+            if (await socket_json(ws,'Home Assistant')).get('type')!='auth_ok':raise ValueError('Local authentication failed.')
+            initial=[]
+            for ident,kind in [(1,'state_changed'),(2,'lutron_caseta_button_event'),(3,None)]:
+                await ws.send_json({'id':ident,'type':'subscribe_events',**({'event_type':kind} if kind else {})})
+                result=await socket_json(ws,'Home Assistant')
+                while result.get('type')=='event':
+                    item=converted(result)
+                    if item:initial.append(item)
+                    if len(initial)>256:raise asyncio.QueueFull()
+                    result=await socket_json(ws,'Home Assistant')
+                if result.get('id')!=ident or result.get('type')!='result' or not result.get('success'):raise ValueError('Local event subscription failed.')
+            self.counter=max(self.counter,3)
+            await cloud.send_json({'type':'ready'})
+            for item in initial:events.put_nowait(item)
             async for frame in ws:
-                if frame.type != aiohttp.WSMsgType.TEXT:
-                    break
-                message = json.loads(frame.data)
-                if message.get('type') == 'result':
-                    future = self.pending.get(message.get('id'))
+                if frame.type!=aiohttp.WSMsgType.TEXT:break
+                message=json.loads(frame.data)
+                if message.get('type')=='result':
+                    future=self.pending.get(message.get('id'))
                     if future and not future.done():
-                        if message.get('success'):
-                            future.set_result(message.get('result'))
-                        else:
-                            future.set_exception(ValueError('Local registry request failed.'))
-                elif message.get('type') == 'event' and message.get('id') in (1,2):
-                    event = message.get('event', {})
-                    if event.get('event_type') == 'state_changed':
-                        events.put_nowait(event['data'])
-                    elif event.get('event_type')=='lutron_caseta_button_event':
-                        data = event.get('data',{})
-                        ident = data.get('device_id','')
-                        if re.fullmatch(r'[a-f0-9]{32}',ident) and isinstance(data.get('button_type'),str) and isinstance(data.get('action'),str):
-                            stamp = event.get('time_fired') or str(time.time_ns())
-                            events.put_nowait({'entity_id':'event.lutron_'+ident,'new_state':{'entity_id':'event.lutron_'+ident,'state':stamp,'last_updated':stamp,'attributes':{'event_type':data['button_type']+':'+data['action']}}})
+                        if message.get('success'):future.set_result(message.get('result'))
+                        else:future.set_exception(ValueError('Local registry request failed.'))
+                elif message.get('type')=='event':
+                    item=converted(message)
+                    if item:events.put_nowait(item)
             raise ConnectionError(f'Home Assistant event connection closed (code {ws.close_code}).')
 
 
@@ -197,7 +191,8 @@ class Connector:
 
             async def send_events():
                 while True:
-                    await cloud.send_json({'type': 'event', 'data': await events.get()})
+                    event=await events.get()
+                    await cloud.send_json({'type':'ha_event','data':event['_ha_event']} if '_ha_event' in event else {'type':'event','data':event})
 
             async def commands():
                 while True:

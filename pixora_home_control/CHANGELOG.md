@@ -1,3 +1,9 @@
+# 1.0.7
+
+- Forward Home Assistant events for Flows Event nodes and safely correlated notification action responses.
+- Preserve events received during subscription setup and retain reconnect recovery.
+- Requires the matching Pixora cloud update before updating this app.
+
 # 1.0.6
 
 - Recover automatically when Pixora or Home Assistant closes a socket during authentication or event subscription, instead of exiting with WSMessageTypeError.
