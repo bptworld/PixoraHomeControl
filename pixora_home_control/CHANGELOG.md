@@ -1,3 +1,8 @@
+# 1.0.6
+
+- Recover automatically when Pixora or Home Assistant closes a socket during authentication or event subscription, instead of exiting with WSMessageTypeError.
+- Report which handshake connection closed and its close code without logging credentials or server payloads.
+
 # 1.0.5
 
 - Discover Lutron button controllers and forward their live button events to Flows.

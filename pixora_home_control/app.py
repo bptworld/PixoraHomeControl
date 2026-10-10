@@ -16,6 +16,19 @@ HA_SOCKET = 'ws://supervisor/core/websocket'
 LOG = logging.getLogger('pixora_home_control')
 
 
+async def socket_json(ws, name, timeout=15):
+    """Turn handshake close/error frames into recoverable connection failures."""
+    frame = await ws.receive(timeout=timeout)
+    if frame.type != aiohttp.WSMsgType.TEXT:
+        code = frame.data if frame.type == aiohttp.WSMsgType.CLOSE else ws.close_code
+        # Never include frame payloads or peer-provided close reasons in logs.
+        raise ConnectionError(f'{name} connection closed during handshake (code {code if isinstance(code, int) else ws.close_code}).')
+    message = json.loads(frame.data)
+    if not isinstance(message, dict):
+        raise ValueError('Invalid socket message.')
+    return message
+
+
 def allowed(path, method):
     return (method == 'GET' and (path in {'/api/', '/api/config', '/api/states', '/api/services', '/pixora/registry'} or re.fullmatch(r'/api/states/[a-z0-9_]+\.[a-z0-9_]+', path))) or (method == 'POST' and re.fullmatch(r'/api/services/[a-z0-9_]+/[a-z0-9_]+', path))
 
@@ -72,21 +85,21 @@ class LocalAPI:
         async with self.session.ws_connect(HA_SOCKET, heartbeat=20, max_msg_size=5_000_000) as ws:
             self.socket = ws
             self.registry_cache = None
-            if (await ws.receive_json()).get('type') != 'auth_required':
+            if (await socket_json(ws, 'Home Assistant')).get('type') != 'auth_required':
                 raise ValueError('Invalid local greeting.')
             await ws.send_json({'type': 'auth', 'access_token': self.token})
-            if (await ws.receive_json()).get('type') != 'auth_ok':
+            if (await socket_json(ws, 'Home Assistant')).get('type') != 'auth_ok':
                 raise ValueError('Local authentication failed.')
             await ws.send_json({'id': 1, 'type': 'subscribe_events', 'event_type': 'state_changed'})
-            result = await ws.receive_json()
+            result = await socket_json(ws, 'Home Assistant')
             if result.get('type') != 'result' or not result.get('success'):
                 raise ValueError('Local event subscription failed.')
             await ws.send_json({'id': 2, 'type': 'subscribe_events', 'event_type': 'lutron_caseta_button_event'})
-            result = await ws.receive_json()
+            result = await socket_json(ws, 'Home Assistant')
             initial_events=[]
             while result.get('type')=='event' and result.get('id')==1:
                 initial_events.append(result['event']['data'])
-                result=await ws.receive_json()
+                result=await socket_json(ws, 'Home Assistant')
             if result.get('type')!='result' or not result.get('success'):
                 raise ValueError('Local Lutron event subscription failed.')
             self.counter = max(self.counter, 2)
@@ -176,7 +189,7 @@ class Connector:
     async def run_connection(self, session, local, credential):
         async with session.ws_connect(SOCKET, heartbeat=20, max_msg_size=5_000_000) as cloud:
             await cloud.send_json({'type': 'auth', 'credential': credential})
-            reply = await cloud.receive_json(timeout=15)
+            reply = await socket_json(cloud, 'Pixora')
             if reply.get('type') != 'auth_ok':
                 raise ValueError('Connector authorization failed. Pair again in Planner.')
             events = asyncio.Queue(maxsize=256)
