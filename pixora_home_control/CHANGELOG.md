@@ -1,3 +1,8 @@
+# 1.0.8
+
+- Send each Home Assistant event once using one event-bus subscription, preserving state triggers, Lutron buttons, custom events and notification replies.
+- Uses the optimized stream with Pixora cloud 1.42.366 or newer; automatically retains the compatible stream on older servers.
+
 # 1.0.7
 
 - Forward Home Assistant events for Flows Event nodes and safely correlated notification action responses.

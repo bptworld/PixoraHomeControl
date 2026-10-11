@@ -81,7 +81,7 @@ class LocalAPI:
         self.registry_cache=registry;self.registry_at=time.monotonic()
         return registry
 
-    async def listen(self, cloud, events):
+    async def listen(self, cloud, events, unified=False):
         def converted(message):
             event=message.get('event',{})
             if message.get('id')==3:return {'_ha_event':event}
@@ -97,7 +97,7 @@ class LocalAPI:
             await ws.send_json({'type':'auth','access_token':self.token})
             if (await socket_json(ws,'Home Assistant')).get('type')!='auth_ok':raise ValueError('Local authentication failed.')
             initial=[]
-            for ident,kind in [(1,'state_changed'),(2,'lutron_caseta_button_event'),(3,None)]:
+            for ident,kind in ([(3,None)] if unified else [(1,'state_changed'),(2,'lutron_caseta_button_event'),(3,None)]):
                 await ws.send_json({'id':ident,'type':'subscribe_events',**({'event_type':kind} if kind else {})})
                 result=await socket_json(ws,'Home Assistant')
                 while result.get('type')=='event':
@@ -182,7 +182,7 @@ class Connector:
 
     async def run_connection(self, session, local, credential):
         async with session.ws_connect(SOCKET, heartbeat=20, max_msg_size=5_000_000) as cloud:
-            await cloud.send_json({'type': 'auth', 'credential': credential})
+            await cloud.send_json({'type': 'auth', 'credential': credential, 'eventStream': 'unified'})
             reply = await socket_json(cloud, 'Pixora')
             if reply.get('type') != 'auth_ok':
                 raise ValueError('Connector authorization failed. Pair again in Planner.')
@@ -214,7 +214,7 @@ class Connector:
                         raise ValueError('Invalid cloud message.')
                 raise ConnectionError(f'Pixora connection closed (code {cloud.close_code}).')
 
-            tasks = [asyncio.create_task(coro) for coro in [local.listen(cloud, events), send_events(), commands(), heartbeat(), receive()]]
+            tasks = [asyncio.create_task(coro) for coro in [local.listen(cloud, events, unified=reply.get("eventStream")=="unified"), send_events(), commands(), heartbeat(), receive()]]
             LOG.info('Paired connector connected to Pixora.')
             try:
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
