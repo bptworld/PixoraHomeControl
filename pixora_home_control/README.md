@@ -1,3 +1,14 @@
+> [!WARNING]
+> **DEPRECATED — Home Assistant app moved to PixoraHQforHA.**
+>
+> Use **[PixoraHQforHA](https://github.com/bptworld/PixoraHQforHA)** for new installations and future HA app releases.
+> This app's new directory is **[pixora_home_control](https://github.com/bptworld/PixoraHQforHA/tree/main/pixora_home_control)**.
+>
+> Existing installs keep working: this directory and its code have been retained.
+> No automatic migration occurs. Back up settings/data and stop the old app before
+> starting a replacement from the new repository. Keep the old install until the
+> replacement is verified. Other platform components in this repository are unaffected.
+
 # Pixora Home Control
 
 Connects Home Assistant to Planner, Home Control, and Flows using a secure outbound connection. No public Home Assistant address, Nabu Casa subscription, long-lived token, or port forwarding is needed.
