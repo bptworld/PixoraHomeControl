@@ -1,3 +1,5 @@
+**This legacy installation is now named Pixora Home Control - Old. The name change preserves its existing app ID, configuration and data.**
+
 **IMPORTANT — This app has moved to PixoraHQ for Home Assistant.**
 
 **New app repository: `https://github.com/bptworld/PixoraHQforHA`**

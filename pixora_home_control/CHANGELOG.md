@@ -1,3 +1,8 @@
+# 1.0.10
+
+- Rename this legacy app to **Pixora Home Control - Old** so it is easy to distinguish from the current PixoraHQforHA app.
+- Keep the existing app slug, configuration and saved data unchanged.
+
 # 1.0.9
 
 **IMPORTANT — This app has moved to PixoraHQ for Home Assistant.**

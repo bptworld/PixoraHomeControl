@@ -1,5 +1,5 @@
-name: Pixora Home Control
-version: "1.0.9"
+name: "Pixora Home Control - Old"
+version: "1.0.10"
 slug: pixora_home_control
 description: "LEGACY APP — Open Information for the move to PixoraHQforHA. Existing settings are preserved."
 url: https://github.com/bptworld/PixoraHomeControl/tree/main/pixora_home_control
