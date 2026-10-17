@@ -1,7 +1,7 @@
 name: Pixora Home Control
-version: "1.0.8"
+version: "1.0.9"
 slug: pixora_home_control
-description: Connect Home Assistant locally to Pixora Home Control, Planner, and Flows.
+description: "LEGACY APP — Open Information for the move to PixoraHQforHA. Existing settings are preserved."
 url: https://github.com/bptworld/PixoraHomeControl/tree/main/pixora_home_control
 arch:
   - aarch64

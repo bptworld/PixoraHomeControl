@@ -1,3 +1,24 @@
+# 1.0.9
+
+**IMPORTANT — This app has moved to PixoraHQ for Home Assistant.**
+
+**New app repository: `https://github.com/bptworld/PixoraHQforHA`**
+
+This update adds this notice; your existing installation and settings keep working. It does **not** move or uninstall your app. For the current app and future releases:
+
+1. Back up this app and keep the old installation until the replacement is verified.
+2. Add the new repository in **Settings → Apps → App store → ⋮ → Repositories**.
+3. Turn off **Start on boot** and **Watchdog** for the old app, then **Stop** it before starting its replacement.
+4. Install the app with the same name from **PixoraHQ for Home Assistant**, follow the pairing steps below, and verify it is working. Enable Start on boot and Watchdog for the new app.
+
+**Keep the old app stopped. Adding the repository does not transfer app data, configuration or credentials automatically.**
+
+Open **[planner.pixorahq.com](https://planner.pixorahq.com/)** to pair Home Control. Your Home Control layouts and Flows remain in your Pixora account.
+
+Brought to you by [PixoraHQ.com](https://pixorahq.com/).
+
+- Publish an app update so existing installations receive the bold Information-page notice and setup instructions. No automatic migration or device actions.
+
 # 1.0.8
 
 - Send each Home Assistant event once using one event-bus subscription, preserving state triggers, Lutron buttons, custom events and notification replies.
