@@ -1,34 +1,13 @@
-> [!WARNING]
-> **DEPRECATED — Home Assistant app moved to PixoraHQforHA.**
->
-> Use **[PixoraHQforHA](https://github.com/bptworld/PixoraHQforHA)** for new installations and future HA app releases.
-> This app's new directory is **[pixora_home_control](https://github.com/bptworld/PixoraHQforHA/tree/main/pixora_home_control)**.
->
-> Existing installs keep working: this directory and its code have been retained.
-> No automatic migration occurs. Back up settings/data and stop the old app before
-> starting a replacement from the new repository. Keep the old install until the
-> replacement is verified. Other platform components in this repository are unaffected.
+# Pixora Home Control has moved
 
-# Pixora Home Control
+**The old Home Assistant app has been retired and its executable app code removed.**
 
-Connects Home Assistant to Planner, Home Control, and Flows using a secure outbound connection. No public Home Assistant address, Nabu Casa subscription, long-lived token, or port forwarding is needed.
+Install and update Home Control from **[PixoraHQforHA](https://github.com/bptworld/PixoraHQforHA)**.
 
-1. Add `https://github.com/bptworld/PixoraHomeControl` to your Home Assistant app/add-on repositories.
-2. Install **Pixora Home Control**.
-3. In **Planner → Smart Home → Home Assistant**, choose **Pair Home Control app**.
-4. Copy the pairing code into this app’s **Configuration → pairing_code**, save, and start the app. Codes expire after ten minutes and work once.
-5. Enable **Start on boot** and **Watchdog**. Planner will show the app as online.
+[Current Home Control app and documentation](https://github.com/bptworld/PixoraHQforHA/tree/main/pixora_home_control)
 
-The app uses Home Assistant’s internal API permission, receives local state events, and executes commands through the standard local service API. The Flow engine remains on Pixora’s server. Internet access is required; old commands are not queued for later execution. Uncertain command results are never retried automatically.
+Removing this repository code does not migrate or delete installed app data. Back up the old installation and preserve both its settings and saved connection credential before switching. Keep the old app stopped after verifying its replacement; do not run both together.
 
-Disconnecting Home Assistant in Planner revokes this app’s credential. To reconnect, generate a new pairing code, replace `pairing_code`, and restart the app. Previously chosen device tiles and Flows remain in Pixora.
+Dashboard layouts, Flows, variables and history remain in your existing Pixora account. Do not disconnect or re-pair a working connection as part of a data-preserving migration.
 
-Requires Home Assistant OS with the app/add-on store. A standalone Container installation is not supported by this package.
-
-## Local installation before release
-
-Extract the supplied ZIP so its `pixora_home_control` folder is at `/addons/pixora_home_control` on Home Assistant. Reload the app/add-on store, then install **Pixora Home Control** from **Local apps**. Leave the app stopped until the matching Pixora server release is deployed; pairing is not available on the previous server release. Then follow steps 3–5 above.
-
-## Server deployment
-
-The Pixora connector socket and existing Flow engine run in the same server process. Deploy one Render instance with `WEB_CONCURRENCY=1` (set in this release’s Render blueprint). Multiple workers or replicas require a shared connection broker before enabling this transport. Pairing credentials use the existing encrypted Home Assistant connection storage. No credentials are placed in URLs or logs.
+Brought to you by [PixoraHQ.com](https://pixorahq.com/).
